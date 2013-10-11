@@ -90,7 +90,17 @@ module EventMachine
   def self.initialize_event_machine
     @em = com.rubyeventmachine.EmReactor.new do |sig, event, buf, data|
       s = String.from_java_bytes(buf.array[buf.position...buf.limit]) if buf
-      EventMachine::event_callback sig, event.int_value, s || data
+      begin
+        EventMachine::event_callback sig, event.int_value, s || data
+      rescue java.lang.Exception => t
+        if instance_variable_defined? :@error_handler
+          @error_handler.call t
+        end
+      rescue StandardError => e
+        if instance_variable_defined? :@error_handler
+          @error_handler.call e
+        end
+      end
       nil
     end
   end
