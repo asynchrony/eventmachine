@@ -54,7 +54,7 @@ public class EmReactor {
 	private HashMap<Long, EventableChannel<?>> Connections;
 	private HashMap<Long, ServerSocketChannel> Acceptors;
 	private ArrayList<Long> NewConnections;
-	private ArrayList<Long> UnboundConnections;
+	private ArrayList<UnboundConnection> UnboundConnections;
 	private ArrayList<EventableSocketChannel> DetachedConnections;
 
 	private boolean bRunReactor;
@@ -69,7 +69,7 @@ public class EmReactor {
 		Connections = new HashMap<Long, EventableChannel<?>>();
 		Acceptors = new HashMap<Long, ServerSocketChannel>();
 		NewConnections = new ArrayList<Long>();
-		UnboundConnections = new ArrayList<Long>();
+		UnboundConnections = new ArrayList<UnboundConnection>();
 		DetachedConnections = new ArrayList<EventableSocketChannel>();
 
 		BindingIndex = 0;
@@ -114,7 +114,7 @@ public class EmReactor {
 				try {
 					ec.register();
 				} catch (ClosedChannelException e) {
-					UnboundConnections.add (ec.getBinding());
+					UnboundConnections.add(new UnboundConnection(ec.getBinding(), e));
 				}
 			}
 		}
@@ -122,10 +122,10 @@ public class EmReactor {
 	}
 
 	void removeUnboundConnections() {
-		for (long b : UnboundConnections) {
-			EventableChannel<?> ec = Connections.remove(b);
+		for (UnboundConnection uc : UnboundConnections) {
+			EventableChannel<?> ec = Connections.remove(uc.getBinding());
 			if (ec != null) {
-				callback.trigger(b, EventCode.EM_CONNECTION_UNBOUND, null, (long) 0);
+				callback.trigger(uc.getBinding(), EventCode.EM_CONNECTION_UNBOUND, null, uc.getException());
 				ec.close();
 
 				EventableSocketChannel sc = (EventableSocketChannel) ec;
@@ -224,22 +224,45 @@ public class EmReactor {
 
 	void isReadable (SelectionKey k) {
 		EventableChannel<?> ec = (EventableChannel<?>) k.attachment();
-		if (!ec.read()) {
-			UnboundConnections.add (ec.getBinding());
+		try {
+			ec.read();
+		} catch (IOException e) {
+			UnboundConnections.add(new UnboundConnection(ec.getBinding(), e));
+		}
+	}
+	
+	private class UnboundConnection {
+		private final long binding;
+		private final Exception e;
+		public UnboundConnection(long binding, Exception e) {
+			this.binding = binding;
+			this.e = e;
+		}
+		public long getBinding() {
+			return binding;
+		}
+		public Exception getException() {
+			return e;
 		}
 	}
 
 	void isWritable (SelectionKey k) {
 		EventableChannel<?> ec = (EventableChannel<?>) k.attachment();
-		if (!ec.write()) {
-			UnboundConnections.add (ec.getBinding());
+		try {
+			if (!ec.write()) {
+				UnboundConnections.add(new UnboundConnection(ec.getBinding(), null));
+			}
+		} catch (IOException e) {
+			UnboundConnections.add(new UnboundConnection(ec.getBinding(), e));
 		}
 	}
 
 	void isConnectable (SelectionKey k) {
 		EventableSocketChannel ec = (EventableSocketChannel) k.attachment();
-		if (!ec.finishConnecting()) {
-			UnboundConnections.add (ec.getBinding());
+		try {
+			ec.finishConnecting();
+		} catch (IOException e) {
+			UnboundConnections.add(new UnboundConnection(ec.getBinding(), e));
 		}
 	}
 
@@ -437,7 +460,7 @@ public class EmReactor {
 		EventableChannel<?> ec = Connections.get(sig);
 		if (ec != null)
 			if (ec.scheduleClose (afterWriting))
-				UnboundConnections.add (sig);
+				UnboundConnections.add(new UnboundConnection(sig, null));
 	}
 	
 	long createBinding() {
@@ -500,7 +523,7 @@ public class EmReactor {
 	public SocketChannel detachChannel (long sig) {
 		EventableSocketChannel ec = (EventableSocketChannel) Connections.get (sig);
 		if (ec != null) {
-			UnboundConnections.add (sig);
+			UnboundConnections.add(new UnboundConnection(sig, null));
 			return ec.getChannel();
 		} else {
 			return null;

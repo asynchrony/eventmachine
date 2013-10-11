@@ -83,14 +83,9 @@ public class SslBox {
         handshakeStatus = sslEngine.getHandshakeStatus();
     }
 
-	public boolean handshake(SelectionKey channelKey) {
-		try {
-			int newOps = do_handshake(channelKey.isReadable(), channelKey.isWritable());
-			channelKey.interestOps(newOps);
-		} catch (IOException e) {
-			return false;
-		}
-		return true;
+	public void handshake(SelectionKey channelKey) throws IOException {
+		int newOps = do_handshake(channelKey.isReadable(), channelKey.isWritable());
+		channelKey.interestOps(newOps);
 	}
 
 	public boolean handshakeNeeded() {

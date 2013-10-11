@@ -223,17 +223,13 @@ public class EventableSocketChannel extends EventableChannel<ByteBuffer> {
 	/**
 	 * Called by the reactor when we have selected connectable.
 	 * Return false to indicate an error that should cause the connection to close.
+	 * @throws IOException 
 	 */
-	public boolean finishConnecting() {
-		try {
+	public void finishConnecting() throws IOException {
 			channel.finishConnect();
 			bConnectPending = false;
 			updateEvents();
 			callback.trigger(binding, EventCode.EM_CONNECTION_COMPLETED, null, 0);
-			return true;
-		} catch (IOException e) {
-			return false;
-		}
 	}
 	
 	public boolean scheduleClose (boolean afterWriting) {
@@ -347,17 +343,14 @@ public class EventableSocketChannel extends EventableChannel<ByteBuffer> {
 	}
 
 	@Override
-	protected boolean performHandshake() {
-		if (sslBox == null) return true;
+	protected void performHandshake() throws IOException {
+		if (sslBox == null) return;
 		
-		if (sslBox.handshake(channelKey)) {
-			if (!sslBox.handshakeNeeded()) {
-				callback.trigger(binding, EventCode.EM_SSL_HANDSHAKE_COMPLETED, null, 0);
-				updateEvents();
-			}
-			return true;
+		sslBox.handshake(channelKey);
+		if (!sslBox.handshakeNeeded()) {
+			callback.trigger(binding, EventCode.EM_SSL_HANDSHAKE_COMPLETED, null, 0);
+			updateEvents();
 		}
-		return false;
 	}
 
 	public void acceptSslPeer() {

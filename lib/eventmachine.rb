@@ -1445,7 +1445,15 @@ module EventMachine
       if c = @conns.delete( conn_binding )
         begin
           if c.original_method(:unbind).arity != 0
-            c.unbind(data == 0 ? nil : EventMachine::ERRNOS[data])
+            arg = case data
+            when 0
+              nil
+            when Fixnum
+              EventMachine::ERRNOS[data]
+            else
+              data
+            end
+            c.unbind( arg )
           else
             c.unbind
           end

@@ -109,17 +109,12 @@ public class EventableDatagramChannel extends EventableChannel<DatagramPacket> {
 		}
 	}
 	
-	protected boolean writeOutboundData() {
+	protected boolean writeOutboundData() throws IOException {
 		while (!outboundQ.isEmpty()) {
 			DatagramPacket p = outboundQ.getFirst();
 			int written = 0;
-			try {
-				// With a datagram socket, it's ok to send an empty buffer.
-				written = channel.send(p.bb, p.recipient);
-			}
-			catch (IOException e) {
-				return false;
-			}
+			// With a datagram socket, it's ok to send an empty buffer.
+			written = channel.send(p.bb, p.recipient);
 
 			/* Did we consume the whole outbound buffer? If yes, pop it off and
 			 * keep looping. If no, the outbound network buffers are full, so break
@@ -174,7 +169,6 @@ public class EventableDatagramChannel extends EventableChannel<DatagramPacket> {
 	}
 
 	@Override
-	protected boolean performHandshake() {
-		return true;
+	protected void performHandshake() {
 	}
 }
